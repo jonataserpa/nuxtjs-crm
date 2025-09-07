@@ -150,21 +150,44 @@ mkdir -p "$HOME/.kube"
 cp -i /etc/kubernetes/admin.conf "$HOME/.kube/config"
 chown "$(id -u)":"$(id -g)" "$HOME/.kube/config"
 
+# Configurar kubeconfig para root também (evita problemas de certificado)
+log "Configurando kubeconfig para root…"
+mkdir -p /root/.kube
+cp /etc/kubernetes/admin.conf /root/.kube/config
+
 # Permitir agendar pods no control-plane (nó único)
 kubectl taint nodes --all node-role.kubernetes.io/control-plane- || true
 kubectl taint nodes --all node-role.kubernetes.io/master- || true
 
 # ===========================
-# CNI Calico
+# CNI Flannel
 # ===========================
-log "Instalando CNI Calico…"
-kubectl apply -f https://raw.githubusercontent.com/projectcalico/calico/v3.29.0/manifests/tigera-operator.yaml
-# custom-resources padrão já usa 192.168.0.0/16; se você mudar o POD_CIDR, edite abaixo dinamicamente
-curl -fsSL https://raw.githubusercontent.com/projectcalico/calico/v3.29.0/manifests/custom-resources.yaml \
-| sed "s#192.168.0.0/16#${POD_CIDR}#g" \
-| kubectl apply -f -
+log "Limpando CNIs anteriores (se existirem)…"
+# Remove Calico se existir
+kubectl delete -f https://raw.githubusercontent.com/projectcalico/calico/v3.29.0/manifests/calico.yaml 2>/dev/null || true
+kubectl delete -f https://raw.githubusercontent.com/projectcalico/calico/v3.29.0/manifests/tigera-operator.yaml 2>/dev/null || true
+# Remove Flannel antigo se existir
+kubectl delete -f https://raw.githubusercontent.com/flannel-io/flannel/master/Documentation/kube-flannel.yml 2>/dev/null || true
 
-log "Aguardando calico/node ficar Ready (isso pode levar alguns minutos)…"
+# Limpa arquivos CNI no host
+rm -rf /etc/cni/net.d/* /var/lib/cni/networks/* /run/flannel /var/run/calico /var/lib/calico 2>/dev/null || true
+
+# Reinicia kubelet para limpar estado anterior
+log "Reiniciando kubelet para limpar estado anterior…"
+systemctl restart kubelet
+sleep 5
+
+log "Instalando CNI Flannel…"
+kubectl apply -f https://raw.githubusercontent.com/flannel-io/flannel/master/Documentation/kube-flannel.yml
+
+# Configurar Flannel para usar a rede correta
+log "Configurando Flannel para rede ${POD_CIDR}…"
+kubectl patch configmap kube-flannel-cfg -n kube-flannel --patch "{\"data\":{\"net-conf.json\":\"{\\n  \\\"Network\\\": \\\"${POD_CIDR}\\\",\\n  \\\"EnableNFTables\\\": false,\\n  \\\"Backend\\\": {\\n    \\\"Type\\\": \\\"vxlan\\\"\\n  }\\n}\\n\"}}"
+
+# Reiniciar Flannel para aplicar nova configuração
+kubectl rollout restart daemonset kube-flannel-ds -n kube-flannel
+
+log "Aguardando Flannel ficar Ready (isso pode levar alguns minutos)…"
 # espera até 10 min (120 x 5s)
 for i in $(seq 1 120); do
   READY=$(kubectl get nodes -o jsonpath='{range .items[*]}{.status.conditions[?(@.type=="Ready")].status}{"\n"}{end}' | grep True || true)
