@@ -277,7 +277,31 @@ kubectl delete namespace nuxt-app
 sudo kubeadm reset -f
 ```
 
-### 7. Gerenciamento de Pods e Cluster
+### 7. Configuração de DNS Local
+
+Para acessar a aplicação via `nuxt-app.com` ou `nuxt-app.local`:
+
+```bash
+# Adicionar entradas DNS locais
+echo "192.168.3.4    nuxt-app.local" | sudo tee -a /etc/hosts
+echo "192.168.3.4    nuxt-app.com" | sudo tee -a /etc/hosts
+
+# Testar acesso
+curl http://nuxt-app.local:3000
+curl http://nuxt-app.com:3000
+```
+
+**Acesso via Navegador:**
+- 🌐 **http://nuxt-app.com:3000**
+- 🌐 **http://nuxt-app.local:3000**
+
+**Remover entradas DNS:**
+```bash
+# Remover entradas DNS locais
+sudo sed -i '/# Kubernetes Ingress - Nuxt App/,+2d' /etc/hosts
+```
+
+### 8. Gerenciamento de Pods e Cluster
 
 #### Matar/Deletar Pods
 
