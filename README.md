@@ -1,6 +1,6 @@
-# Sistema CRUD com Nuxt.js
+# Sistema CRM com Nuxt.js
 
-Um sistema completo de CRUD (Create, Read, Update, Delete) para gerenciamento de customers, desenvolvido com Nuxt.js 4, Pinia, Zod, TailwindCSS e TypeScript.
+Um sistema completo de CRM para gerenciamento de customers, desenvolvido com Nuxt.js 4, Pinia, Zod, TailwindCSS e TypeScript.
 
 ## 🚀 Características
 
